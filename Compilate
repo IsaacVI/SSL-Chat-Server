@@ -1,0 +1,6 @@
+//make certificate
+openssl req -x509 -nodes -days 365 -newkey rsa:1024 -keyout mycert.pem -out mycert.pem
+//compilate server
+gcc -Wall -o server main.c -L/usr/lib -lssl -lcrypto -pthread
+//compilate client
+gcc -Wall -o client main.c -L/usr/lib -lssl -lcrypto -pthread

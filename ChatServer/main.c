@@ -38,6 +38,8 @@ struct Client
 int clientLenght =0;
 struct Client *clients;
 
+
+
 char* GetWord(char *str, int word)
 {
 	char *result;
@@ -116,6 +118,42 @@ void AddClient(SSL *ssl, char ip[])
 	}
 }
 
+void  RemoveClient(int id)
+{
+	clientLenght--;
+	if(clientLenght>0){
+		struct Client *temp = malloc(sizeof(struct Client)*clientLenght);
+		int i;	
+		for(i=0;i<clientLenght+1;i++)
+		{
+			if(i==id) continue;
+			if(i<id)
+			{
+				(*(temp+i)).ssl =(*(clients+i)).ssl;
+				(*(temp+i)).talker=(*(clients+i)).talker;
+				(*(temp+i)).ip=malloc(25);
+				strcpy((*(temp+i)).ip, (*(clients+i)).ip);
+				(*(temp+i)).name=malloc(25);
+				strcpy((*(temp+i)).name,(*(clients+i)).name);
+			}
+			if(i>id)
+			{
+				(*(temp+i-1)).ssl =(*(clients+i)).ssl;
+				(*(temp+i-1)).talker=(*(clients+i)).talker;
+				(*(temp+i-1)).ip=malloc(25);
+				strcpy((*(temp+i-1)).ip, (*(clients+i)).ip);
+				(*(temp+i-1)).name=malloc(25);
+				strcpy((*(temp+i-1)).name,(*(clients+i)).name);
+			}
+		}
+		free(clients);
+		clients =temp;
+	}
+	
+	else
+		clients=NULL;
+	
+}
 
 int OpenListener(int port)
 {   int sd;
@@ -468,18 +506,6 @@ void HandleMessage(SSL* ssl, char *message)
 
 	//////////////////////////////////////////////////////////////////////////////
 }
-
-void *Disconnecter()
-{
-	while(1){
-	int i;
-	for(i=0;i<clientLenght;i++)
-	{
-			//TODO
-	}
-	sleep(1);
-	}
-}
  
 void *Servlet(void* sslPoin) 
 {   char buf[1024] = {0};
@@ -487,7 +513,6 @@ void *Servlet(void* sslPoin)
 	ssl =(SSL *)  sslPoin;
     int sd, bytes;
 
- 
     if ( SSL_accept(ssl) == FAIL )      
         ERR_print_errors_fp(stderr);
     else
@@ -503,7 +528,20 @@ void *Servlet(void* sslPoin)
 		 	HandleMessage(ssl, &buf);
 			
 		}
- 	}
+		if(bytes==0){
+			struct Client *this = GetClientBySSL(ssl);
+			printf("%s disconneted\n",this->ip);
+			RemoveClient(this-clients);
+			printf("%d\n",clientLenght);
+			return;
+		}
+		if(bytes<0){
+			struct Client *this = GetClientBySSL(ssl);
+			printf("%s recive failed\n",this->ip);
+			RemoveClient(this-clients);
+			return;
+ 		}
+	}
             
     }
     sd = SSL_get_fd(ssl);       /* get socket connection */
@@ -578,12 +616,6 @@ int main(int count, char *Argc[])
     ctx = InitServerCTX();        /* initialize SSL */
     LoadCertificates(ctx, "mycert.pem", "mycert.pem"); /* load certs */
     server = OpenListener(atoi(portnum));    /* create server socket */
-	pthread_t checker;
-	if( pthread_create( &checker , NULL ,  Disconnecter ,NULL) < 0)
-        {
-            perror("could not create thread");
-            return 1;
-        }
     while (1)
     {   
 	struct sockaddr_in addr;
@@ -610,6 +642,8 @@ int main(int count, char *Argc[])
 	
 	AddClient(ssl, ip);
 	pthread_t sniffer_thread;
+	
+	printf("%d\n",clientLenght);
         if( pthread_create( &sniffer_thread , NULL ,  Servlet , (void*) ssl) < 0)
         {
             perror("could not create thread");
